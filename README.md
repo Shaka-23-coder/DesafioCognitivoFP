@@ -2,7 +2,7 @@
 
 Proyecto académico de Fundamentos de Programación. Implementa un prototipo de consola para registrar y consultar expedientes de licitación.
 
-## Requisitos
+## Herramientas usadas
 - Python 3.10 o superior (no requiere instalar librerías externas).
 - Visual Studio Code.
 - Git para el control de versiones.
@@ -33,9 +33,6 @@ Proyecto académico de Fundamentos de Programación. Implementa un prototipo de 
 - Listado ordenado por fecha límite más próxima.
 - Ficha de control en pantalla.
 
-## Límites del prototipo
-Este es un prototipo académico. No sube archivos PDF ni comprueba que las rutas existan: guarda las rutas escritas por el usuario. Tampoco se conecta a plataformas oficiales ni presenta ofertas. La fecha límite se valida por formato; el programa no bloquea licitaciones cuya fecha ya pasó. Estas mejoras pueden agregarse si el docente las exige.
-
 ## Historial de versiones con Git
 Ejecuta estos comandos en la terminal, dentro de esta carpeta:
 
@@ -55,28 +52,7 @@ Luego crea un repositorio vacío en GitHub (sin README ni licencia), copia la UR
 
 ```bash
 git branch -M main
-git remote add origin PEGA_AQUI_LA_URL_DE_TU_REPOSITORIO
+git remote add origin URL_DEL_REPOSITORIO
 git push -u origin main
 ```
 
-Reemplaza `PEGA_AQUI_LA_URL_DE_TU_REPOSITORIO` por la URL real de tu repositorio. No escribas esa frase literalmente.
-
-## Evidencias para el informe
-1. Captura del proyecto abierto en VS Code mostrando los módulos.
-2. Captura de la ejecución del menú en la terminal.
-3. Captura del registro de una licitación de prueba.
-4. Captura de la búsqueda o del listado ordenado por vencimiento.
-5. Captura de `licitaciones.json` después de registrar un expediente.
-6. Captura de GitHub donde se vean los commits.
-7. En el informe, explica que cada commit registra una etapa concreta del desarrollo.
-
-## Ejemplo de prueba
-- Número: LP-001-2026
-- Entidad: Municipalidad de prueba
-- Objeto: Servicio de consultoría
-- Fecha límite: 2026-12-31
-- Monto: 15000
-- Responsable: Ana Torres
-- Anexos PDF: (puede dejarse vacío)
-
-Estos datos son ficticios y solo sirven para probar el programa.
