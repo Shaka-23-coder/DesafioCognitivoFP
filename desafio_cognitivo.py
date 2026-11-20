@@ -1,246 +1,322 @@
 """Código principal para el desafio cognitivo"""
-import os
-
-# Constantes de configuración
-ARCHIVO_DATOS = "expedientes_licitacion.txt"
-MAX_REGISTROS = 100
-
 # ==========================================
-# MÓDULO 1: VALIDACIONES
+# MÓDULO: VALIDACIONES
 # ==========================================
 
 
-def validar_fecha(fecha_limite_str, fecha_actual_str="20261014"):
+def validar_fecha(fecha):
     """
-    Valida que la fecha límite no sea anterior a la fecha actual.
-    Formato esperado: AAAAMMDD
+    Valida que la fecha tenga el formato AAAA-MM-DD y sea una fecha válida
     """
-    if len(fecha_limite_str) != 8 or not fecha_limite_str.isdigit():
+    if len(fecha) != 10:
         return False
-    return int(fecha_limite_str) >= int(fecha_actual_str)
+    if fecha[4] != "-" or fecha[7] != "-":
+        return False
+    numeros = fecha[0:4] + fecha[5:7] + fecha[8:10]
+    if not numeros.isdigit():
+        return False
+
+    anio = int(fecha[0:4])
+    mes = int(fecha[5:7])
+    dia = int(fecha[8:10])
+
+    if anio < 2000 or mes < 1 or mes > 12:
+        return False
+
+    dias = 31
+    if mes == 4 or mes == 6 or mes == 9 or mes == 11:
+        dias = 30
+    elif mes == 2:
+        dias = 28
+        if anio % 4 == 0:
+            if anio % 100 != 0 or anio % 400 == 0:
+                dias = 29
+
+    if dia < 1 or dia > dias:
+        return False
+
+    return True
+
+
+def validar_monto(texto):
+    """Valida que el monto sea un número positivo"""
+    numero = texto.replace(".", ".", 1)
+    if numero.isdigit():
+        if float(texto) > 0:
+            return True
+    return False
+
+
+def validar_anexos(anexos):
+    """Valida que los anexos tengan el formato correcto"""
+    if anexos.strip() == "":
+        return False
+
+    lista = anexos.split(";")
+    for nombre in lista:
+        nombre = nombre.strip().lower()
+        if len(nombre) <= 4 or not nombre.endswith(".pdf"):
+            return False
+
+    return True
+
 
 # ==========================================
-# MÓDULO 2: LÓGICA DE NEGOCIO Y CÓDIGOS
-# ==========================================
-
-
-def generar_codigo_correlativo(numero):
-    """
-    Genera un identificador único correlativo con formatio SEG-2026-X
-    """
-    return f"SEG-2026-{numero}"
-
-
-def ordenar_por_fecha_vencimiento(expedientes):
-    """
-    Ordena la lista de expedientes de menor a mayor según fecha límite
-    Algoritmo de ordenamiento burbuja
-    """
-    n = len(expedientes)
-    for i in range(n - 1):
-        for j in range(0, n - i - 1):
-            if (
-                int(expedientes[j]['fecha_limite'])
-                > int(expedientes[j + 1]['fecha_limite'])
-            ):
-                expedientes[j], expedientes[j + 1] = (
-                    expedientes[j + 1],
-                    expedientes[j]
-                )
-
-# ==========================================
-# MÓDULO 3: PERSISTENCIA EN ARCHIVOS
-# ==========================================
-
-
-def guardar_expedientes_en_archivo(expedientes):
-    """
-    Guarda de forma permanente la información de expedientes en disco.
-    """
-    try:
-        with open(ARCHIVO_DATOS, "w", encoding="utf-8") as f:
-            for exp in expedientes:
-                linea = (
-                    f"{exp['codigo']}|{exp['num_lic']}|{exp['entidad']}|"
-                    f"{exp['objeto']}|{exp['fecha_limite']}|{exp['monto']}|"
-                    f"{exp['analista']}|{exp['estado']}\n"
-                )
-                f.write(linea)
-    except OSError as e:
-        print(f"Error al guardar datos: {e}")
-
-
-def cargar_expedientes_desde_archivo():
-    """
-    Carga los expedientes existentes al iniciar el programa.
-    """
-    expedientes = []
-    if os.path.exists(ARCHIVO_DATOS):
-        try:
-            with open(ARCHIVO_DATOS, "r", encoding="utf-8") as f:
-                for linea in f:
-                    datos = linea.strip().split("|")
-                    if len(datos) == 8:
-                        expedientes.append({
-                            "codigo": datos[0],
-                            "num_lic": datos[1],
-                            "entidad": datos[2],
-                            "objeto": datos[3],
-                            "fecha_limite": datos[4],
-                            "monto": float(datos[5]),
-                            "analista": datos[6],
-                            "estado": datos[7]
-                        })
-        except ValueError as e:
-            print(f"Error al procesar datos: {e}")
-    return expedientes
-
-# ==========================================
-# MÓDULO 4: INTERFAZ Y CONTROLADOR
+# MÓDULO: NEGOCIO
 # ==========================================
 
 
-def registrar_expediente(expedientes):
-    """Función que permite registrar un nuevo expediente"""
-    print("\n--- REGISTRO DE NUEVO EXPEDIENTE ---")
-    if len(expedientes) >= MAX_REGISTROS:
-        print("Error: Capacidad máxima de memoria alcanzada.")
+def siguiente_codigo(lista):
+    """
+    Genera el siguiente codigo interno para una nueva licitación
+    """
+    mayor = 0
+    for fila in lista:
+        numero = int(fila[0][4:])
+        if numero > mayor:
+            mayor = numero
+    return f"LIC-{mayor + 1:04d}"
+
+
+def registrar_licitacion(numero, entidad, objeto, fecha_registro,
+                         fecha_limite, monto, responsable, anexos):
+    """
+    Registra una nueva licitacion si no existe ya una con el mismo numero
+    y entidad.
+    """
+    lista = cargar_licitaciones()
+
+    for fila in lista:
+        if (
+            fila[1].lower() == numero.lower()
+            and fila[2].lower() == entidad.lower()
+        ):
+            print("Ya existe esa licitacion para la misma entidad.")
+            return ""
+
+    codigo = siguiente_codigo(lista)
+    fila = [codigo, numero, entidad, objeto, fecha_registro, fecha_limite,
+            str(monto), responsable, anexos, "Pendiente"]
+    guardar_licitacion(fila)
+    return codigo
+
+
+def listar_licitaciones():
+    """Lista todas las licitaciones registradas"""
+    return cargar_licitaciones()
+
+
+def buscar_licitaciones(termino):
+    """Busca licitaciones por codigo, numero o entidad"""
+    lista = cargar_licitaciones()
+    encontrados = []
+    termino = termino.lower()
+
+    for fila in lista:
+        if (
+            termino in fila[0].lower()
+            or termino in fila[1].lower()
+            or termino in fila[2].lower()
+        ):
+            encontrados.append(fila)
+
+    return encontrados
+
+
+def listar_por_vencimiento():
+    """Lista las licitaciones ordenadas por fecha limite"""
+    lista = cargar_licitaciones()
+
+    # Metodo burbuja: ordena fechas de menor a mayor.
+    for i in range(len(lista) - 1):
+        for j in range(len(lista) - 1 - i):
+            if lista[j][5] > lista[j + 1][5]:
+                auxiliar = lista[j]
+                lista[j] = lista[j + 1]
+                lista[j + 1] = auxiliar
+
+    return lista
+
+
+def generar_ficha_control(codigo):
+    """Genera la ficha de control de una licitacion por codigo interno"""
+    lista = cargar_licitaciones()
+    for fila in lista:
+        if fila[0].lower() == codigo.lower():
+            return fila
+    return []
+
+
+# ==========================================
+# MÓDULO: PERSISTENCIA
+# ==========================================
+
+
+def cargar_licitaciones():
+    """Carga las licitaciones desde el archivo de texto"""
+    lista = []
+
+    # Crea el archivo si todavia no existe.
+    with open("licitaciones.txt", "a", encoding="utf-8") as archivo:
+        archivo.write("")
+
+    with open("licitaciones.txt", "r", encoding="utf-8") as archivo:
+        for linea in archivo:
+            fila = linea.strip().split(",")
+            if len(fila) == 10:
+                lista.append(fila)
+
+    return lista
+
+
+def guardar_licitacion(fila):
+    """Guarda una licitacion en el archivo de texto"""
+    linea = ",".join(str(valor) for valor in fila[:10])
+    with open("licitaciones.txt", "a", encoding="utf-8") as archivo:
+        archivo.write(f"{linea}\n")
+
+
+# ==========================================
+# MÓDULO 4: INTERFAZ Y MENÚ
+# ==========================================
+
+
+def pedir_texto(mensaje):
+    """Pide un texto al usuario y valida que no este vacio ni contenga comas"""
+    texto = input(mensaje).strip()
+    while texto == "" or "," in texto:
+        print("Ingresa un dato valido y sin comas.")
+        texto = input(mensaje).strip()
+    return texto
+
+
+def pedir_fecha(mensaje):
+    """Pide una fecha al usuario y valida que tenga el formato AAAA-MM-DD"""
+    fecha = input(mensaje).strip()
+    while not validar_fecha(fecha):
+        print("Fecha incorrecta. Ejemplo: 2026-12-31")
+        fecha = input(mensaje).strip()
+    return fecha
+
+
+def pedir_monto():
+    """Pide un monto al usuario y valida que sea un numero positivo"""
+    monto = input("Monto de la oferta (S/): ").strip()
+    while not validar_monto(monto):
+        print("Ingresa un monto numerico mayor que cero. Ejemplo: 1500.50")
+        monto = input("Monto de la oferta (S/): ").strip()
+    return float(monto)
+
+
+def pedir_anexos():
+    """
+    Pide los nombres de los anexos PDF al usuario y valida que
+    tengan el formato correcto.
+    """
+    anexos = input("Nombres de anexos PDF (separados por ;): ").strip()
+    while not validar_anexos(anexos):
+        print("Ingresa al menos un nombre terminado en .pdf")
+        anexos = input("Nombres de anexos PDF (separados por ;): ").strip()
+    return anexos
+
+
+def registrar():
+    """Registra una nueva licitacion solicitando los datos al usuario"""
+    print("\n--- REGISTRAR LICITACION ---")
+    numero = pedir_texto("Numero de licitacion: ")
+    entidad = pedir_texto("Entidad convocante: ")
+    objeto = pedir_texto("Objeto de contratacion: ")
+    fecha_registro = pedir_fecha("Fecha de registro (AAAA-MM-DD): ")
+    fecha_limite = pedir_fecha("Fecha limite (AAAA-MM-DD): ")
+
+    if fecha_limite < fecha_registro:
+        print("Error: la fecha limite es anterior a la fecha de registro.")
         return
 
-    num_lic = input("Ingrese N° de Licitación/Convocatoria: ").strip()
-    entidad = input("Ingrese nombre de la entidad convocante: ").strip()
-    objeto = input("Ingrese materia/objeto de la licitación: ").strip()
+    monto = pedir_monto()
+    responsable = pedir_texto("Analista responsable: ")
+    anexos = pedir_anexos()
+    codigo = registrar_licitacion(
+        numero, entidad, objeto, fecha_registro,
+        fecha_limite, monto, responsable, anexos
+    )
 
-    while True:
-        fecha_limite = input("Ingrese fecha límite (AAAAMMDD): ").strip()
-        if validar_fecha(fecha_limite):
-            break
+    if codigo != "":
+        print(f"Registro exitoso. Codigo interno: {codigo}")
+
+
+def mostrar_registros(lista):
+    """Muestra una lista de licitaciones en formato tabular"""
+    if len(lista) == 0:
+        print("No se encontraron licitaciones.")
+    else:
         print(
-            "Error: La fecha debe tener 8 dígitos y ser igual o posterior "
-            "a la actual."
+            "\nCodigo     Numero          Entidad                   "
+            "Fecha limite  Monto       Estado"
         )
-
-    while True:
-        try:
-            monto = float(input("Ingrese monto de la oferta (S/): "))
-            break
-        except ValueError:
-            print("Error: Ingrese un valor numérico válido.")
-
-    analista = input("Ingrese nombre del analista responsable: ").strip()
-
-    nuevo_codigo = generar_codigo_correlativo(len(expedientes) + 1)
-    nuevo_expediente = {
-        "codigo": nuevo_codigo,
-        "num_lic": num_lic,
-        "entidad": entidad,
-        "objeto": objeto,
-        "fecha_limite": fecha_limite,
-        "monto": monto,
-        "analista": analista,
-        "estado": "EN PROCESO"
-    }
-
-    expedientes.append(nuevo_expediente)
-    guardar_expedientes_en_archivo(expedientes)
-    print(f"¡Expediente registrado con éxito! Código asignado: {nuevo_codigo}")
+        print("-" * 94)
+        for fila in lista:
+            print(
+                f"{fila[0]:<11}{fila[1]:<16}{fila[2]:<26}"
+                f"{fila[5]:<14}{float(fila[6]):<12.2f}{fila[9]}"
+            )
 
 
-def buscar_expediente(expedientes):
-    """Función para buscar expediente con el código correlativo"""
-    print("\n--- BÚSQUEDA DE EXPEDIENTE ---")
-    if not expedientes:
-        print("No hay expedientes registrados.")
-        return
-
-    codigo_buscado = input(
-        "Ingrese el código correlativo a buscar (ej. SEG-2026-1): "
-    ).strip().upper()
-    encontrado = False
-
-    for exp in expedientes:
-        if exp["codigo"].upper() == codigo_buscado:
-            print("\n=============================")
-            print("   EXPEDIENTE ENCONTRADO")
-            print("=============================")
-            print(f"Código interno:  {exp['codigo']}")
-            print(f"N° Licitación:   {exp['num_lic']}")
-            print(f"Entidad:         {exp['entidad']}")
-            print(f"Objeto/Materia:  {exp['objeto']}")
-            print(f"Fecha Límite:    {exp['fecha_limite']}")
-            print(f"Monto Oferta:    S/ {exp['monto']:.2f}")
-            print(f"Analista:        {exp['analista']}")
-            print(f"Estado:          {exp['estado']}")
-            print("=============================")
-            encontrado = True
-            break
-
-    if not encontrado:
-        print(
-            "Error: No se encontró ningún expediente con el código ingresado."
-        )
+def buscar():
+    """Busca licitaciones por codigo, numero o entidad y las muestra"""
+    termino = pedir_texto("Buscar por codigo, numero o entidad: ")
+    lista = buscar_licitaciones(termino)
+    mostrar_registros(lista)
 
 
-def listar_expedientes_ordenados(expedientes):
-    """Función que ordena los expedientes y lo muestra"""
-    print("\n--- LISTADO DE LICITACIONES ORDENADAS POR VENCIMIENTO ---")
-    if not expedientes:
-        print("No hay expedientes registrados.")
-        return
-
-    ordenar_por_fecha_vencimiento(expedientes)
-    for exp in expedientes:
-        print(
-            f"[{exp['fecha_limite']}] {exp['codigo']} - {exp['entidad']} "
-            f"(Lic. {exp['num_lic']}) | Estado: {exp['estado']}"
-        )
-
-
-def generar_ficha_control(expedientes):
-    """Función que genera una ficha de control"""
-    print("\n--- FICHAS DE CONTROL DE EXPEDIENTES ---")
-    if not expedientes:
-        print("No hay expedientes registrados.")
-        return
-
-    for exp in expedientes:
-        print(
-            f"Ficha {exp['codigo']}: Lic. {exp['num_lic']} | "
-            f"Entidad: {exp['entidad']} | Resp: {exp['analista']} | "
-            f"Monto: S/ {exp['monto']:.2f}"
-        )
+def ficha():
+    """Genera la ficha de control de una licitacion por codigo interno"""
+    codigo = pedir_texto("Codigo interno (ejemplo LIC-0001): ")
+    fila = generar_ficha_control(codigo)
+    if len(fila) == 0:
+        print("No se encontro ese expediente.")
+    else:
+        print("\n--- FICHA DE CONTROL ---")
+        print(f"Codigo interno: {fila[0]}")
+        print(f"Numero de licitacion: {fila[1]}")
+        print(f"Entidad: {fila[2]}")
+        print(f"Objeto: {fila[3]}")
+        print(f"Fecha de registro: {fila[4]}")
+        print(f"Fecha limite: {fila[5]}")
+        print(f"Monto: S/ {float(fila[6]):.2f}")
+        print(f"Responsable: {fila[7]}")
+        print(f"Anexos PDF: {fila[8]}")
+        print(f"Estado: {fila[9]}")
 
 
-def menu_principal():
-    """Función que muestra el menú principal con las distintas opciones"""
-    expedientes = cargar_expedientes_desde_archivo()
+def menu():
+    """Muestra el menu principal y permite al usuario seleccionar opciones"""
+    opcion = ""
+    while opcion != "0":
+        print("\nSISTEMA DE GESTION DE LICITACIONES - GRUPO SEG")
+        print("1. Registrar licitacion")
+        print("2. Listar licitaciones")
+        print("3. Buscar licitacion")
+        print("4. Ordenar por fecha limite")
+        print("5. Generar ficha de control")
+        print("0. Salir")
 
-    while True:
-        print("\n========================================================")
-        print(" SISTEMA DIGITAL DE GESTIÓN DE LICITACIONES - GRUPO SEG ")
-        print("========================================================")
-        print("1. Registrar nuevo expediente de licitación")
-        print("2. Buscar expediente por código correlativo")
-        print("3. Listar y ordenar licitaciones por fecha de vencimiento")
-        print("4. Generar ficha de control del expediente")
-        print("5. Salir del sistema")
-
-        opcion = input("Seleccione una opción (1-5): ").strip()
-
+        opcion = input("Seleccione una opcion: ")
         if opcion == "1":
-            registrar_expediente(expedientes)
+            registrar()
         elif opcion == "2":
-            buscar_expediente(expedientes)
+            mostrar_registros(listar_licitaciones())
         elif opcion == "3":
-            listar_expedientes_ordenados(expedientes)
+            buscar()
         elif opcion == "4":
-            generar_ficha_control(expedientes)
+            mostrar_registros(listar_por_vencimiento())
         elif opcion == "5":
-            print("Saliendo del sistema...")
-            break
+            ficha()
+        elif opcion == "0":
+            print("Programa finalizado.")
         else:
-            print("Opción no válida. Intente nuevamente.")
+            print("Opcion incorrecta.")
 
 
 if __name__ == "__main__":
-    menu_principal()
+    menu()
